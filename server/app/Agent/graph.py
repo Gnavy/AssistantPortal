@@ -737,11 +737,11 @@ async def agent_node(state: AgentState, runtime: Runtime[Context]) -> Dict[str, 
         "server_name（yaml 中 mcp.<server_name> 的 key）、tool_name（MCP 工具名）、arguments（JSON 对象）。"
         "工具返回会作为证据；最终回答必须基于证据，并在需要时原样引用关键返回片段/URL。"
         "如果工具返回了图片 URL，请在最终回答中使用 Markdown：`![图表](<url>)`。"
-        "你最多进行 8 次工具调用；达到上限后必须基于已有工具结果直接给出结论，禁止继续调用工具。"
+        "你最多进行 10 次工具调用；达到上限后必须基于已有工具结果直接给出结论，禁止继续调用工具。"
     )
 
     model_input = [SystemMessage(content=system_prompt), *messages]
-    force_finalize = tool_message_count >= 8
+    force_finalize = tool_message_count >= 10
     if force_finalize:
         model_input.insert(
             1,

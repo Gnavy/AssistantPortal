@@ -37,7 +37,7 @@ app.add_middleware(
 BASE_DIR = Path(__file__).resolve().parent.parent
 STATIC_DIR = BASE_DIR / "static"
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets"), check_dir=False), name="assets")
 CONFIG_PATH = BASE_DIR / "config.yaml"
 LOGGER = logging.getLogger("doubao.realtime")
 if LOGGER.level == logging.NOTSET:

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { DotLottie } from '@lottiefiles/dotlottie-web';
 import {
   AudioLines,
   Camera,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import { streamTextQuery } from '../lib/textSse';
 import { setPendingMicStream } from '../lib/pendingMic';
+import hiLottie from '../hi.lottie';
 
 export type ChatMessage = {
   id: string;
@@ -54,6 +56,9 @@ export function ChatPage({
   const speechFinalRef = useRef('');
   const speechInterimRef = useRef('');
   const speechReleasedRef = useRef(false);
+  const lottieCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lottieRef = useRef<DotLottie | null>(null);
+  const [showWelcomeAnimation, setShowWelcomeAnimation] = useState(() => messages.length === 0);
 
   useEffect(() => {
     return () => {
@@ -76,6 +81,35 @@ export function ChatPage({
     });
     return () => cancelAnimationFrame(id);
   }, [messages]);
+
+  useEffect(() => {
+    if (messages.length > 0) {
+      setShowWelcomeAnimation(false);
+    }
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (!showWelcomeAnimation) {
+      lottieRef.current?.destroy();
+      lottieRef.current = null;
+      return;
+    }
+    const canvas = lottieCanvasRef.current;
+    if (!canvas) return;
+    const animation = new DotLottie({
+      canvas,
+      src: hiLottie,
+      autoplay: true,
+      loop: true,
+    });
+    lottieRef.current = animation;
+    return () => {
+      animation.destroy();
+      if (lottieRef.current === animation) {
+        lottieRef.current = null;
+      }
+    };
+  }, [showWelcomeAnimation]);
 
   const sendTextContent = useCallback(async (rawText: string) => {
     const text = rawText.trim();
@@ -244,7 +278,17 @@ export function ChatPage({
       {/* 消息区 */}
       <div ref={listRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4">
         {messages.length === 0 ? (
-          <div className="text-center text-[#aaa] text-sm pt-16">向元创小助手提问吧</div>
+          <div className="h-full min-h-[260px] flex items-center justify-center">
+            {showWelcomeAnimation ? (
+              <canvas
+                ref={lottieCanvasRef}
+                width={220}
+                height={220}
+                className="w-[200px] h-[200px]"
+                aria-label="欢迎动画"
+              />
+            ) : null}
+          </div>
         ) : (
           messages.map((msg) => (
             <div
