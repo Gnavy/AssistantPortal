@@ -34,8 +34,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/static", StaticFiles(directory="static"), name="static")
-CONFIG_PATH = Path(__file__).resolve().parent.parent / "config.yaml"
+BASE_DIR = Path(__file__).resolve().parent.parent
+STATIC_DIR = BASE_DIR / "static"
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+CONFIG_PATH = BASE_DIR / "config.yaml"
 LOGGER = logging.getLogger("doubao.realtime")
 if LOGGER.level == logging.NOTSET:
     LOGGER.setLevel(logging.INFO)
@@ -560,7 +563,7 @@ def healthz() -> JSONResponse:
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse("static/index.html")
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/api/text/sse")
