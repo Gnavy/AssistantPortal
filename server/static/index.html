@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>豆包实时语音 Demo</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        background: #0f172a;
+        color: #e2e8f0;
+      }
+      .container {
+        max-width: 860px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+      .card {
+        background: #111827;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 20px;
+      }
+      h1 {
+        margin-top: 0;
+      }
+      button {
+        border: none;
+        border-radius: 10px;
+        padding: 10px 16px;
+        margin-right: 10px;
+        cursor: pointer;
+        color: #fff;
+      }
+      .start {
+        background: #2563eb;
+      }
+      .stop {
+        background: #dc2626;
+      }
+      .keepalive {
+        background: #16a34a;
+      }
+      .interrupt {
+        background: #ea580c;
+      }
+      .status-wrap {
+        margin-top: 14px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .status-light {
+        width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        background: #334155;
+        box-shadow: 0 0 0 2px rgba(51, 65, 85, 0.3);
+      }
+      .status-light.playing {
+        background: #22c55e;
+        box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25), 0 0 10px rgba(34, 197, 94, 0.8);
+      }
+      .status-text {
+        min-width: 62px;
+        color: #cbd5e1;
+        font-size: 14px;
+      }
+      .meter {
+        flex: 1;
+        height: 10px;
+        border-radius: 999px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        overflow: hidden;
+      }
+      .meter-fill {
+        height: 100%;
+        width: 0%;
+        transition: width 100ms linear;
+        background: linear-gradient(90deg, #22c55e 0%, #eab308 60%, #ef4444 100%);
+      }
+      .text-input-wrap {
+        margin-top: 14px;
+        display: flex;
+        gap: 8px;
+      }
+      .text-input-wrap input {
+        flex: 1;
+        border-radius: 10px;
+        border: 1px solid #334155;
+        background: #0b1220;
+        color: #e2e8f0;
+        padding: 10px 12px;
+        outline: none;
+      }
+      .text-input-wrap input:focus {
+        border-color: #2563eb;
+      }
+      .send-text {
+        background: #7c3aed;
+      }
+      .chat-box {
+        margin-top: 12px;
+        border: 1px solid #1e293b;
+        border-radius: 8px;
+        background: #020617;
+        max-height: 180px;
+        overflow: auto;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+      .chat-line {
+        margin-bottom: 6px;
+      }
+      .chat-line.user {
+        color: #93c5fd;
+      }
+      .chat-line.assistant {
+        color: #86efac;
+      }
+      pre {
+        margin-top: 16px;
+        max-height: 360px;
+        overflow: auto;
+        background: #020617;
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #1e293b;
+      }
+      .tips {
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <h1>豆包实时语音交互 Demo</h1>
+        <p class="tips">
+          录音参数：16kHz 单声道 PCM Int16。点击开始后，麦克风音频将通过 FastAPI 转发至豆包实时语音服务。
+        </p>
+        <div>
+          <button id="startBtn" class="start">开始录音</button>
+          <button id="stopBtn" class="stop" disabled>停止录音</button>
+          <button id="keepAliveBtn" class="keepalive">发送 KeepAlive</button>
+          <button id="interruptBtn" class="interrupt" disabled>打断豆包</button>
+        </div>
+        <div class="status-wrap">
+          <div id="playStatusLight" class="status-light" title="播放状态"></div>
+          <div id="playStatusText" class="status-text">空闲</div>
+          <div class="meter">
+            <div id="volumeMeterFill" class="meter-fill"></div>
+          </div>
+        </div>
+        <div class="text-input-wrap">
+          <input id="textQueryInput" type="text" placeholder="输入文字，发送后豆包将文字+语音回答" />
+          <button id="sendTextBtn" class="send-text">发送文字</button>
+        </div>
+        <div id="chatBox" class="chat-box"></div>
+        <pre id="log"></pre>
+      </div>
+    </div>
+
+    <script>
+      const logEl = document.getElementById("log");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+      const keepAliveBtn = document.getElementById("keepAliveBtn");
+      const interruptBtn = document.getElementById("interruptBtn");
+      const playStatusLight = document.getElementById("playStatusLight");
+      const playStatusText = document.getElementById("playStatusText");
+      const volumeMeterFill = document.getElementById("volumeMeterFill");
+      const textQueryInput = document.getElementById("textQueryInput");
+      const sendTextBtn = document.getElementById("sendTextBtn");
+      const chatBox = document.getElementById("chatBox");
+
+      let ws;
+      let stream;
+      let audioCtx;
+      let sourceNode;
+      let processorNode;
+      let muteGainNode;
+      let player;
+      let lastInterruptAt = 0;
+      let consecutiveSpeechFrames = 0;
+      let meterTimer = null;
+      let isMicStreaming = false;
+      let textSse = null;
+      const AUTO_INTERRUPT_RMS_THRESHOLD = 0.045;
+      const AUTO_INTERRUPT_MIN_ACTIVE_FRAMES = 4;
+      const AUTO_INTERRUPT_COOLDOWN_MS = 1600;
+      const conversationId =
+        localStorage.getItem("doubao_conversation_id") ||
+        `conv_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      localStorage.setItem("doubao_conversation_id", conversationId);
+
+      class PCMStreamPlayer {
+        constructor(sampleRate = 24000) {
+          this.sampleRate = sampleRate;
+          this.ctx = null;
+          this.processor = null;
+          this.gain = null;
+          this.queue = [];
+          this.offset = 0;
+          this.currentLevel = 0;
+        }
+
+        async init() {
+          if (this.ctx) return;
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)({
+            sampleRate: this.sampleRate,
+          });
+          if (this.ctx.state === "suspended") {
+            await this.ctx.resume();
+          }
+          this.processor = this.ctx.createScriptProcessor(2048, 1, 1);
+          this.gain = this.ctx.createGain();
+          this.gain.gain.value = 1;
+          this.processor.onaudioprocess = (event) => {
+            const out = event.outputBuffer.getChannelData(0);
+            out.fill(0);
+            let writeIndex = 0;
+            while (writeIndex < out.length && this.queue.length > 0) {
+              const chunk = this.queue[0];
+              const remain = chunk.length - this.offset;
+              const canWrite = Math.min(remain, out.length - writeIndex);
+              out.set(chunk.subarray(this.offset, this.offset + canWrite), writeIndex);
+              writeIndex += canWrite;
+              this.offset += canWrite;
+              if (this.offset >= chunk.length) {
+                this.queue.shift();
+                this.offset = 0;
+              }
+            }
+            // 使用平滑 RMS 作为播放音量电平，避免条形图抖动。
+            this.currentLevel = this.currentLevel * 0.72 + calcRms(out) * 0.28;
+          };
+          this.processor.connect(this.gain);
+          this.gain.connect(this.ctx.destination);
+          log("音频播放器已就绪（pcm_s16le@24k）");
+        }
+
+        pushPCM16LE(arrayBuffer) {
+          if (!this.ctx) return;
+          if (this.ctx.state === "suspended") {
+            this.ctx.resume().catch(() => {});
+          }
+          const i16 = new Int16Array(arrayBuffer);
+          const f32 = new Float32Array(i16.length);
+          for (let i = 0; i < i16.length; i += 1) {
+            f32[i] = i16[i] / 32768;
+          }
+          this.queue.push(f32);
+        }
+
+        clearQueue() {
+          this.queue = [];
+          this.offset = 0;
+          this.currentLevel = 0;
+        }
+
+        isPlaying() {
+          return this.queue.length > 0;
+        }
+
+        getLevel() {
+          return this.currentLevel;
+        }
+
+        async close() {
+          this.queue = [];
+          this.offset = 0;
+          this.currentLevel = 0;
+          if (this.processor) this.processor.disconnect();
+          if (this.gain) this.gain.disconnect();
+          if (this.ctx) await this.ctx.close();
+          this.processor = null;
+          this.gain = null;
+          this.ctx = null;
+        }
+      }
+
+      function log(message) {
+        const now = new Date().toLocaleTimeString();
+        logEl.textContent = `[${now}] ${message}\n` + logEl.textContent;
+      }
+
+      function floatTo16BitPCM(float32Array) {
+        const buffer = new ArrayBuffer(float32Array.length * 2);
+        const view = new DataView(buffer);
+        let offset = 0;
+        for (let i = 0; i < float32Array.length; i += 1) {
+          let sample = Math.max(-1, Math.min(1, float32Array[i]));
+          sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+          view.setInt16(offset, sample, true);
+          offset += 2;
+        }
+        return buffer;
+      }
+
+      function calcRms(float32Array) {
+        let sum = 0;
+        for (let i = 0; i < float32Array.length; i += 1) {
+          sum += float32Array[i] * float32Array[i];
+        }
+        return Math.sqrt(sum / float32Array.length);
+      }
+
+      function interruptPlayback(trigger = "manual") {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: "interrupt" }));
+        if (player) player.clearQueue();
+        log(trigger === "auto" ? "检测到说话，已自动打断豆包" : "已发送打断指令");
+      }
+
+      function appendChat(role, content) {
+        const div = document.createElement("div");
+        div.className = `chat-line ${role}`;
+        div.textContent = `${role === "user" ? "你" : "元创小助手"}：${content}`;
+        chatBox.appendChild(div);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      function sendTextQuery() {
+        const content = textQueryInput.value.trim();
+        if (!content) return;
+        ensurePlayer()
+          .then(() => {
+            if (textSse) {
+              textSse.close();
+              textSse = null;
+            }
+            appendChat("user", content);
+            textQueryInput.value = "";
+            sendTextBtn.disabled = true;
+            log("已通过 SSE 发送文字查询");
+
+            const url = `/api/text/sse?conversation_id=${encodeURIComponent(conversationId)}&content=${encodeURIComponent(content)}`;
+            textSse = new EventSource(url);
+
+            textSse.addEventListener("connected", () => {
+              log("SSE 已连接");
+            });
+
+            textSse.addEventListener("chat", (event) => {
+              const data = JSON.parse(event.data);
+              if (data.content) appendChat("assistant", data.content);
+            });
+
+            textSse.addEventListener("audio", (event) => {
+              const data = JSON.parse(event.data);
+              if (data.audio_base64 && player) {
+                player.pushPCM16LE(base64ToArrayBuffer(data.audio_base64));
+              }
+            });
+
+            textSse.addEventListener("error", (event) => {
+              try {
+                const data = JSON.parse(event.data);
+                log(`SSE 错误: ${data.message || "unknown"}`);
+              } catch (_e) {
+                log("SSE 连接异常");
+              }
+              sendTextBtn.disabled = false;
+              if (textSse) {
+                textSse.close();
+                textSse = null;
+              }
+            });
+
+            textSse.addEventListener("done", () => {
+              log("本轮文字会话完成");
+              sendTextBtn.disabled = false;
+              if (textSse) {
+                textSse.close();
+                textSse = null;
+              }
+            });
+          })
+          .catch((err) => log(`播放器初始化失败: ${err.message}`));
+      }
+
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+      }
+
+      async function ensurePlayer() {
+        if (!player || !player.ctx) {
+          player = new PCMStreamPlayer(24000);
+          await player.init();
+        }
+        if (meterTimer) clearInterval(meterTimer);
+        meterTimer = setInterval(updatePlayIndicators, 80);
+      }
+
+      async function ensureRealtimeConnection() {
+        if (ws && ws.readyState === WebSocket.OPEN) return;
+        ws = new WebSocket(`${location.origin.replace("http", "ws")}/ws/realtime`);
+        ws.binaryType = "arraybuffer";
+        await ensurePlayer();
+        await new Promise((resolve, reject) => {
+          ws.onopen = () => {
+            log("WebSocket 已连接");
+            ws.send(JSON.stringify({ type: "set_conversation_id", conversation_id: conversationId }));
+            textQueryInput.disabled = false;
+            sendTextBtn.disabled = false;
+            resolve();
+          };
+          ws.onclose = () => {
+            log("WebSocket 已断开");
+            if (!isMicStreaming) {
+              startBtn.disabled = false;
+              stopBtn.disabled = true;
+              interruptBtn.disabled = true;
+            }
+          };
+          ws.onerror = (e) => {
+            log(`WebSocket 错误: ${e.message || "unknown"}`);
+            reject(new Error("websocket error"));
+          };
+          ws.onmessage = (event) => {
+            if (typeof event.data === "string") {
+              try {
+                const msg = JSON.parse(event.data);
+                const eventId = msg.event || msg.event_id;
+                if (eventId) {
+                  log(`上游事件: ${eventId} ${msg.message ? `- ${msg.message}` : ""}`);
+                  if (Number(eventId) === 550 && msg.content) {
+                    appendChat("assistant", msg.content);
+                  }
+                } else {
+                  log(`上游文本消息: ${event.data}`);
+                }
+              } catch (_err) {
+                log(`上游文本消息: ${event.data}`);
+              }
+            } else {
+              player.pushPCM16LE(event.data);
+              log(`收到并播放音频: ${event.data.byteLength} bytes`);
+            }
+          };
+        });
+      }
+
+      function updatePlayIndicators() {
+        const playing = Boolean(player && player.isPlaying());
+        playStatusLight.classList.toggle("playing", playing);
+        playStatusText.textContent = playing ? "播放中" : "空闲";
+        const level = player ? player.getLevel() : 0;
+        const percent = Math.min(100, Math.max(0, level * 250));
+        volumeMeterFill.style.width = `${percent.toFixed(1)}%`;
+      }
+
+      async function start() {
+        await ensureRealtimeConnection();
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 16000,
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({
+          sampleRate: 16000,
+        });
+        sourceNode = audioCtx.createMediaStreamSource(stream);
+        processorNode = audioCtx.createScriptProcessor(1024, 1, 1);
+        muteGainNode = audioCtx.createGain();
+        muteGainNode.gain.value = 0;
+
+        processorNode.onaudioprocess = (event) => {
+          if (!ws || ws.readyState !== WebSocket.OPEN) return;
+          const input = event.inputBuffer.getChannelData(0);
+          const rms = calcRms(input);
+          const now = Date.now();
+          const speaking = rms > AUTO_INTERRUPT_RMS_THRESHOLD;
+          if (speaking) {
+            consecutiveSpeechFrames += 1;
+          } else {
+            consecutiveSpeechFrames = Math.max(0, consecutiveSpeechFrames - 1);
+          }
+          const speechConfirmed = consecutiveSpeechFrames >= AUTO_INTERRUPT_MIN_ACTIVE_FRAMES;
+          if (
+            speechConfirmed &&
+            player &&
+            player.isPlaying() &&
+            now - lastInterruptAt > AUTO_INTERRUPT_COOLDOWN_MS
+          ) {
+            lastInterruptAt = now;
+            consecutiveSpeechFrames = 0;
+            interruptPlayback("auto");
+          }
+          const pcm16 = floatTo16BitPCM(input);
+          ws.send(pcm16);
+        };
+
+        sourceNode.connect(processorNode);
+        processorNode.connect(muteGainNode);
+        muteGainNode.connect(audioCtx.destination);
+        isMicStreaming = true;
+
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        interruptBtn.disabled = false;
+      }
+
+      async function stop() {
+        if (processorNode) processorNode.disconnect();
+        if (muteGainNode) muteGainNode.disconnect();
+        if (sourceNode) sourceNode.disconnect();
+        if (audioCtx) await audioCtx.close();
+        if (player) {
+          await player.close();
+          player = null;
+        }
+        if (meterTimer) {
+          clearInterval(meterTimer);
+          meterTimer = null;
+        }
+        updatePlayIndicators();
+        if (stream) stream.getTracks().forEach((track) => track.stop());
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          if (isMicStreaming) {
+            ws.send(JSON.stringify({ type: "finish" }));
+          }
+        }
+        if (textSse) {
+          textSse.close();
+          textSse = null;
+        }
+        isMicStreaming = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        interruptBtn.disabled = true;
+        sendTextBtn.disabled = false;
+      }
+
+      startBtn.addEventListener("click", async () => {
+        try {
+          await start();
+        } catch (err) {
+          log(`启动失败: ${err.message}`);
+        }
+      });
+
+      stopBtn.addEventListener("click", async () => {
+        try {
+          await stop();
+        } catch (err) {
+          log(`停止失败: ${err.message}`);
+        }
+      });
+
+      keepAliveBtn.addEventListener("click", () => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "keep_alive" }));
+          log("已发送 keep_alive");
+        } else {
+          log("WebSocket 未连接，无法发送 keep_alive");
+        }
+      });
+
+      interruptBtn.addEventListener("click", () => {
+        interruptPlayback("manual");
+      });
+
+      sendTextBtn.addEventListener("click", () => {
+        sendTextQuery();
+      });
+
+      textQueryInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          sendTextQuery();
+        }
+      });
+    </script>
+  </body>
+</html>

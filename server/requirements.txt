@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+websockets
+PyYAML
+httpx
+langgraph
+langchain-core
+langchain-openai
+python-dotenv
+mcp

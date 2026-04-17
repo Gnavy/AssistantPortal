@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  touch-action: manipulation;
+}
+
+/* 实时语音页「聆听中」明暗呼吸 */
+@keyframes voice-listen-breathe {
+  0%,
+  100% {
+    opacity: 0.38;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.voice-listen-breathe {
+  animation: voice-listen-breathe 2.6s ease-in-out infinite;
+}

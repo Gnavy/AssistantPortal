@@ -1,0 +1,6 @@
+{
+  "name": "Her AI Voice",
+  "description": "A sci-fi style real-time voice interaction app using Gemini Live API.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": []
+}

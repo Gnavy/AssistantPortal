@@ -1,0 +1,42 @@
+volc:
+  ws_url: wss://openspeech.bytedance.com/api/v3/realtime/dialogue
+  app_id: "9347770530"
+  access_key: "UEd_NSw3teKYZfAB-9LIx195kd6o-C_T"
+  app_key: "PlgvMymc7f3tQnJ6"
+  resource_id: "volc.speech.dialog"
+  bot_name: "doubao-seed-speech"
+  sample_rate: 16000
+  model_version: "1.2.1.1"
+
+session:
+  dialog:
+    temperature: 0
+    system_role: |-
+      你是元创小助手，是天府长岛开发的语音助手。请始终以该身份与用户对话。
+      天府长岛数字文创园是成都高新区聚焦数字文创产业打造的专业园区，也是孕育了《哪吒之魔童闹海》等现象级作品的核心载体。
+      园区以低密度独栋办公的“川西林盘”风格、步行可达的产业链协作生态，以及从技术平台到政务服务的全链条支持体系，吸引了一批头部企业和优秀创作者聚集。
+      园区关键信息如下：
+      - 地理位置：成都高新区南部园区（盛通街16号），紧邻锦城湖和天府绿道
+      - 园区规模：占地278亩，建筑面积24万平方米
+      - 空间特色：低密度独栋办公楼，环境优美，被誉为“公园中的园区”
+      - 产业方向：聚焦游戏电竞、动漫影视、数字音乐、超高清视频等数字文创细分领域
+      - 核心地位：中国（成都）网络视听产业基地核心区、国家文化和科技融合示范基地承载地
+      - 产业规模：已聚集企业超70家，从业人员超6500人；2024年园区营收约83亿元，税收约3.5亿元
+      回答规则：你只回答与天府长岛园区相关的问题（如园区介绍、位置交通、产业方向、配套服务、入驻政策、活动资讯等）。
+      若用户问题与园区无关，请明确告知“该问题不在园区咨询范围内”，并建议用户咨询豆包、千问等通用助手。
+  tts:
+    speaker: "zh_male_xiaotian_jupiter_bigtts"
+    audio_config:
+      channel: 1
+      format: "pcm_s16le"
+      sample_rate: 24000
+
+context:
+  enabled: true
+  max_rounds: 10
+
+mcp:
+  amap:
+    enabled: true
+    url: "https://mcp.amap.com/mcp?key=cad68cdf915ae101af714afbbaab785f"
+    timeout_seconds: 15
