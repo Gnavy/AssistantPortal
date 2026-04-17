@@ -3,15 +3,10 @@ import { DotLottie } from '@lottiefiles/dotlottie-web';
 import {
   AudioLines,
   Camera,
-  ChevronDown,
   Copy,
-  FileText,
   Keyboard,
   Mic,
   Plus,
-  Search,
-  Sparkles,
-  Zap,
   Phone,
 } from 'lucide-react';
 import { streamTextQuery } from '../lib/textSse';
@@ -32,13 +27,6 @@ type Props = {
   setMessages?: Dispatch<SetStateAction<ChatMessage[]>>;
   conversationId?: string;
 };
-
-const QUICK_ACTIONS = [
-  { label: '快速', icon: Zap },
-  { label: 'AI 创作', icon: Sparkles },
-  { label: '拍题答疑', icon: Search },
-  { label: 'PPT 生成', icon: FileText },
-];
 
 export function ChatPage({
   onOpenVoice,
@@ -324,23 +312,6 @@ export function ChatPage({
             </div>
           ))
         )}
-      </div>
-
-      {/* 快捷入口 */}
-      <div
-        className="shrink-0 px-3 pb-2 overflow-x-auto flex gap-2"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-      >
-        {QUICK_ACTIONS.map(({ label, icon: Icon }) => (
-          <button
-            key={label}
-            type="button"
-            className="shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-full border border-black/[0.08] bg-white text-[13px] text-[#444]"
-          >
-            <Icon className="w-4 h-4 text-[#333]" />
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* 底栏 */}
