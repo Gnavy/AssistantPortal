@@ -1,0 +1,202 @@
+/* 实时语音页面样式 - 移植自 VoiceRealtimePage.tsx */
+
+/* 与 front index.css 一致，保证单页打包时仍有呼吸动画 */
+@keyframes voice-listen-breathe {
+  0%,
+  100% {
+    opacity: 0.38;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.voice-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background-color: #fff;
+  color: #1a1a1a;
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', 'Heiti SC',
+    sans-serif;
+}
+
+/* 背景渐变 */
+.bg-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+      circle at 50% 35%,
+      rgba(0, 166, 192, 0.06) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 80% 90%,
+      rgba(0, 0, 0, 0.02) 0%,
+      transparent 40%
+    );
+}
+
+/* 主内容 */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 40rpx 28rpx;
+}
+
+/* 头像容器 */
+.avatar-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 600rpx;
+  height: 600rpx;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 标题 */
+.title-section {
+  margin-top: 40rpx;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+}
+
+.title-text {
+  display: inline-block;
+  font-size: 32rpx;
+  font-weight: 300;
+  letter-spacing: 4rpx;
+  color: #333;
+  text-align: center;
+}
+
+.title-text.voice-listen-breathe {
+  font-size: 26rpx;
+  font-weight: 500;
+  letter-spacing: 4rpx;
+  text-transform: uppercase;
+  animation: voice-listen-breathe 2.6s ease-in-out infinite;
+}
+
+/* 错误信息 */
+.error-box {
+  width: 100%;
+  max-width: 600rpx;
+  margin-top: 24rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  text-align: center;
+  background-color: #fef2f2;
+  border: 1rpx solid #fecaca;
+}
+
+.error-text {
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #b91c1c;
+}
+
+/* 字幕区域 */
+.transcript-area {
+  width: 100%;
+  max-width: 680rpx;
+  margin-top: 30rpx;
+  height: 280rpx;
+  padding: 0 12rpx;
+}
+
+.transcript-content {
+  padding-bottom: 12rpx;
+}
+
+.user-transcript {
+  font-size: 24rpx;
+  color: rgba(0, 0, 0, 0.45);
+  margin-bottom: 16rpx;
+  font-style: italic;
+}
+
+.model-transcript {
+  font-size: 32rpx;
+  line-height: 1.75;
+  color: rgba(0, 0, 0, 0.82);
+  font-weight: 300;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.thinking-text {
+  font-size: 30rpx;
+  line-height: 1.75;
+  color: rgba(0, 0, 0, 0.45);
+  font-weight: 400;
+}
+
+/* 底部 */
+.footer {
+  position: relative;
+  z-index: 1;
+  padding: 60rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 30rpx;
+}
+
+/* 挂断按钮 */
+.hangup-btn {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  background-color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+
+.footer-icon-img {
+  width: 64rpx;
+  height: 64rpx;
+  display: block;
+}
+
+/* 重试按钮 */
+.retry-btn {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  border: 1rpx solid rgba(59, 130, 246, 0.5);
+  background: linear-gradient(145deg, #3b82f6 0%, #1d4ed8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 36rpx rgba(29, 78, 216, 0.45);
+}
+
+/* 状态文字 */
+.status-text {
+  font-size: 20rpx;
+  letter-spacing: 4rpx;
+  text-transform: uppercase;
+  color: #888;
+}

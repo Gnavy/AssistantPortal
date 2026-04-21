@@ -1,0 +1,77 @@
+<view class="voice-page">
+  <!-- 背景渐变 -->
+  <view class="bg-gradient"></view>
+
+  <!-- 主内容 -->
+  <view class="main-content">
+    <!-- Lottie 头像 -->
+    <view class="avatar-container">
+      <lottie
+        id="avatar-lottie"
+        path="{{avatarLottiePath}}"
+        width="{{260}}"
+        height="{{260}}"
+        bindready="onAvatarLottieReady"
+        bindcomplete="onAvatarLottieComplete"
+        autoplay
+        loop="{{avatarLottieLoop}}"
+      />
+    </view>
+
+    <!-- 状态标题 -->
+    <view class="title-section">
+      <text
+        class="title-text {{isConnected || connectionState === 'connecting' || connectionState === 'disconnected' ? 'voice-listen-breathe' : ''}}"
+      >
+        {{titleText}}
+      </text>
+    </view>
+
+    <!-- 错误信息 -->
+    <view wx:if="{{isError && errorMessage}}" class="error-box">
+      <text class="error-text">{{errorMessage}}</text>
+    </view>
+
+    <!-- 字幕区域 -->
+    <scroll-view class="transcript-area" scroll-y>
+      <view class="transcript-content">
+        <!-- 用户识别文字 -->
+        <view wx:if="{{latestUserText}}" class="user-transcript">
+          {{latestUserText}}
+        </view>
+        <!-- 助手回复文字 -->
+        <view wx:if="{{modelText}}" class="model-transcript">
+          {{modelText}}
+        </view>
+        <!-- 思考中 -->
+        <view wx:elif="{{isThinking}}" class="thinking-text">
+          思考中...
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- 底部按钮 -->
+  <view class="footer">
+    <!-- 错误态：重试按钮 -->
+    <block wx:if="{{isError}}">
+      <view class="retry-btn" bindtap="handleRetry" aria-label="重试连接">
+        <image
+          class="footer-icon-img"
+          src="/assets/icon-refresh-cw.svg"
+          mode="aspectFit"
+        />
+      </view>
+    </block>
+    <block wx:else>
+      <view class="hangup-btn" bindtap="handleHangup" aria-label="挂断">
+        <image
+          class="footer-icon-img"
+          src="/assets/icon-phone-off.svg"
+          mode="aspectFit"
+        />
+      </view>
+    </block>
+    <text class="status-text">{{isError ? '点击重试' : statusText}}</text>
+  </view>
+</view>

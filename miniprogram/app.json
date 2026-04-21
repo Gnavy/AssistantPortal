@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/chat/chat",
+    "pages/voice/voice"
+  ],
+  "window": {
+    "navigationBarBackgroundColor": "#f5f7fa",
+    "navigationBarTitleText": "天府长岛元创助手",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f5f7fa"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

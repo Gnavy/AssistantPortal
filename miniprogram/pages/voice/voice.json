@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "lottie": "/components/lottie/lottie"
+  },
+  "navigationStyle": "custom"
+}

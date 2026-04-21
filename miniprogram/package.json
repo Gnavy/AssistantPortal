@@ -1,0 +1,8 @@
+{
+  "name": "agentground-miniprogram",
+  "private": true,
+  "description": "依赖需在「微信开发者工具 → 工具 → 构建 npm」后生效，否则 Lottie 组件无法加载。",
+  "dependencies": {
+    "lottie-miniprogram": "^1.0.12"
+  }
+}

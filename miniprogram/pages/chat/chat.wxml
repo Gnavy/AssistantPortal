@@ -1,0 +1,94 @@
+<view class="page">
+  <!-- 顶栏：与 ChatPage 一致 -->
+  <view class="custom-header" style="padding-top: {{statusBarHeight}}px;">
+    <view class="header-row">
+      <view class="logo-box" aria-label="图标占位">LOGO</view>
+      <view class="header-title-wrap">
+        <text class="header-title">天府长岛元创助手</text>
+      </view>
+      <!-- 与左侧 LOGO 同宽占位，保证标题视觉居中 -->
+      <view class="header-spacer"></view>
+    </view>
+  </view>
+
+  <scroll-view
+    class="message-list"
+    scroll-y
+    scroll-into-view="{{scrollTarget}}"
+    scroll-with-animation
+  >
+    <block wx:if="{{messages.length === 0}}">
+      <view class="welcome-container">
+        <lottie
+          wx:if="{{showWelcome}}"
+          path="/assets/hi.json"
+          width="{{200}}"
+          height="{{200}}"
+          autoplay
+          loop
+        />
+      </view>
+    </block>
+
+    <block wx:else>
+      <view
+        wx:for="{{messages}}"
+        wx:key="id"
+        id="msg-{{item.id}}"
+        class="message-row {{item.role === 'user' ? 'row-right' : 'row-left'}}"
+      >
+        <view wx:if="{{item.role === 'user'}}" class="bubble user-bubble">
+          {{item.content}}
+        </view>
+
+        <view wx:else class="bubble assistant-bubble">
+          <view class="bubble-content">
+            <text wx:if="{{item.content}}">{{item.content}}</text>
+            <text wx:elif="{{item.streaming}}">思考中...</text>
+            <view wx:if="{{item.streaming}}" class="typing-cursor"></view>
+          </view>
+          <view
+            wx:if="{{!item.streaming && item.content}}"
+            class="bubble-actions"
+          >
+            <view
+              class="copy-btn"
+              bindtap="copyMessage"
+              data-content="{{item.content}}"
+            >
+              <text class="copy-text">复制</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view class="list-footer-spacer"></view>
+    </block>
+  </scroll-view>
+
+  <!-- 底栏：相机 | 输入 | 加号（与 Web 文字模式一致，无独立发送键，用键盘发送） -->
+  <view class="bottom-bar" style="padding-bottom: calc(16rpx + env(safe-area-inset-bottom));">
+    <view class="input-shell">
+      <view class="icon-tool" bindtap="noopCamera" aria-label="相机">
+        <text class="tool-icon">📷</text>
+      </view>
+      <input
+        class="text-input"
+        value="{{input}}"
+        bindinput="onInputChange"
+        bindconfirm="sendText"
+        placeholder="发消息…"
+        placeholder-style="color: #999;"
+        confirm-type="send"
+        disabled="{{sending}}"
+        hold-keyboard
+      />
+      <view class="icon-tool" bindtap="noopMore" aria-label="更多">
+        <text class="tool-icon">+</text>
+      </view>
+      <view class="icon-tool icon-tool-phone" bindtap="openVoice" aria-label="实时语音">
+        <text class="tool-icon tool-icon-phone">📞</text>
+      </view>
+    </view>
+  </view>
+</view>

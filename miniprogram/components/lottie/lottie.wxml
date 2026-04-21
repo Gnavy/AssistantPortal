@@ -1,0 +1,8 @@
+<view class="lottie-root">
+  <canvas
+    type="2d"
+    id="lottie-canvas"
+    class="lottie-canvas"
+    style="width: {{width}}px; height: {{height}}px;"
+  ></canvas>
+</view>

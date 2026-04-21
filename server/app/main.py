@@ -390,6 +390,20 @@ async def _safe_send_ws_event(ws: WebSocket, event_type: str, **payload: Any) ->
         await ws.send_text(_build_ws_event(event_type, **payload))
 
 
+async def _send_ws_event_logged(ws: WebSocket, event_type: str, **payload: Any) -> bool:
+    try:
+        await ws.send_text(_build_ws_event(event_type, **payload))
+        return True
+    except Exception as exc:
+        LOGGER.warning(
+            "[WS] send event failed: event_type=%s err=%s payload_keys=%s",
+            event_type,
+            exc,
+            list(payload.keys()),
+        )
+        return False
+
+
 def _parse_graph_rag_result_from_ai_content(content: str) -> GraphRAGResult:
     """
     Parse Graph mixed result contract from AI content.
@@ -781,6 +795,15 @@ async def realtime_bridge(ws: WebSocket) -> None:
     VOICE_ASR_COOLDOWN_S: float = 4.0
     # 全局短时音频闸门：用于吸收 RAG 启动瞬间上游残留“抢跑音频”。
     outbound_audio_gate_until_ts: float = 0.0
+    ignored_event_emit_at: dict[str, float] = {}
+
+    async def emit_voice_input_ignored(reason: str, **extra: Any) -> None:
+        now_ts = time.time()
+        last_emit_ts = ignored_event_emit_at.get(reason, 0.0)
+        if now_ts - last_emit_ts < 0.5:
+            return
+        ignored_event_emit_at[reason] = now_ts
+        await _safe_send_ws_event(ws, "voice_input_ignored", reason=reason, **extra)
     try:
         dialog_context = await _get_dialog_context(conversation_id)
         LOGGER.info("realtime bridge: connecting upstream Volc…")
@@ -813,11 +836,12 @@ async def realtime_bridge(ws: WebSocket) -> None:
     with suppress(Exception):
         await ws.send_text(json.dumps({"type": "bridge_ready"}, ensure_ascii=False))
 
-    async def cancel_active_turn(*, interrupt_upstream: bool, reason: str) -> None:
+    async def cancel_active_turn(*, interrupt_upstream: bool, reason: str) -> bool:
         nonlocal active_turn
         if not active_turn:
-            return
+            return False
         turn = active_turn
+        active_turn = None
         turn.phase = "cancelled"
         if interrupt_upstream:
             with suppress(ConnectionClosedOK, ConnectionClosedError, ConnectionClosed):
@@ -840,7 +864,27 @@ async def realtime_bridge(ws: WebSocket) -> None:
             turn.turn_id,
             reason,
         )
-        active_turn = None
+        try:
+            await asyncio.wait_for(
+                _send_ws_event_logged(
+                    ws,
+                    "turn_cancelled",
+                    turn_id=turn.turn_id,
+                    source=turn.source,
+                    route=turn.route,
+                    reason=reason,
+                    ts=time.time(),
+                ),
+                timeout=0.5,
+            )
+        except asyncio.TimeoutError:
+            LOGGER.warning(
+                "[WS] turn_cancelled event timeout: conversation_id=%s turn_id=%s reason=%s",
+                conversation_id,
+                turn.turn_id,
+                reason,
+            )
+        return True
 
     async def start_turn(source: TurnSource, user_text: str) -> None:
         nonlocal active_turn, last_started_voice_query_norm, last_started_voice_query_ts, last_started_voice_turn_id
@@ -857,6 +901,10 @@ async def realtime_bridge(ws: WebSocket) -> None:
                     "[WS-Voice] start_turn blocked by post-answer cooldown: conversation_id=%s remain_s=%.2f",
                     conversation_id,
                     voice_asr_cooldown_until_ts - now_ts,
+                )
+                await emit_voice_input_ignored(
+                    "cooldown",
+                    remain_s=max(0.0, voice_asr_cooldown_until_ts - now_ts),
                 )
                 return
             debounce_window_s = (
@@ -875,6 +923,11 @@ async def realtime_bridge(ws: WebSocket) -> None:
                     debounce_window_s,
                     last_started_voice_turn_id,
                 )
+                await emit_voice_input_ignored(
+                    "duplicate_recent_start",
+                    delta_s=now_ts - last_started_voice_query_ts,
+                    window_s=debounce_window_s,
+                )
                 return
             if (
                 norm
@@ -886,6 +939,11 @@ async def realtime_bridge(ws: WebSocket) -> None:
                     conversation_id,
                     norm[:80],
                     now_ts - last_completed_voice_query_ts,
+                )
+                await emit_voice_input_ignored(
+                    "duplicate_recent_completed",
+                    delta_s=now_ts - last_completed_voice_query_ts,
+                    window_s=COMPLETED_VOICE_QUERY_DEBOUNCE_S,
                 )
                 return
         await cancel_active_turn(interrupt_upstream=True, reason="new_turn")
@@ -1172,6 +1230,7 @@ async def realtime_bridge(ws: WebSocket) -> None:
                 message = await client.recv()
                 if isinstance(message, bytes):
                     if outbound_audio_gate_until_ts > 0 and time.time() < outbound_audio_gate_until_ts:
+                        await emit_voice_input_ignored("gate_drop_outbound_audio")
                         continue
                     if (
                         not active_turn
@@ -1188,11 +1247,13 @@ async def realtime_bridge(ws: WebSocket) -> None:
                         and active_turn.comfort_audio_gate_until_ts > 0
                         and time.time() < active_turn.comfort_audio_gate_until_ts
                     ):
+                        await emit_voice_input_ignored("gate_drop_comfort_audio")
                         continue
                     if (
                         active_turn.bridge_audio_discard_until_ts > 0
                         and time.time() < active_turn.bridge_audio_discard_until_ts
                     ):
+                        await emit_voice_input_ignored("gate_drop_bridge_audio")
                         continue
                     try:
                         await ws.send_bytes(message)
@@ -1234,6 +1295,10 @@ async def realtime_bridge(ws: WebSocket) -> None:
                                         voice_asr_cooldown_until_ts - now_ts,
                                         t[:120],
                                     )
+                                    await emit_voice_input_ignored(
+                                        "asr_final_cooldown",
+                                        remain_s=max(0.0, voice_asr_cooldown_until_ts - now_ts),
+                                    )
                                     continue
                                 LOGGER.info(
                                     "[WS-Voice] ASR final text captured: conversation_id=%s, text=%s",
@@ -1254,6 +1319,10 @@ async def realtime_bridge(ws: WebSocket) -> None:
                                         t[:80],
                                         norm[:80],
                                         now_ts - last_voice_final_ts,
+                                    )
+                                    await emit_voice_input_ignored(
+                                        "asr_final_duplicate",
+                                        delta_s=now_ts - last_voice_final_ts,
                                     )
                                     continue
                                 last_voice_final_text = t
@@ -1338,6 +1407,14 @@ async def realtime_bridge(ws: WebSocket) -> None:
                                     and active_turn.assistant_phase == "final"
                                     and active_turn.final_tts_requested
                                 ):
+                                    if not active_turn.text_completed and not active_turn.assistant_text.strip():
+                                        LOGGER.info(
+                                            "[WS] ignore early %s completion marker before turn has visible final output: conversation_id=%s turn_id=%s",
+                                            ev,
+                                            conversation_id,
+                                            active_turn.turn_id,
+                                        )
+                                        continue
                                     active_turn.audio_completed = True
                                     active_turn.phase = "done"
                                     if not active_turn.assistant_final_done_sent:
@@ -1388,7 +1465,7 @@ async def realtime_bridge(ws: WebSocket) -> None:
                 )
 
     async def browser_to_upstream() -> None:
-        nonlocal conversation_id
+        nonlocal conversation_id, outbound_audio_gate_until_ts
         while True:
             packet = await ws.receive()
             if packet.get("type") == "websocket.disconnect":
@@ -1412,17 +1489,25 @@ async def realtime_bridge(ws: WebSocket) -> None:
                 with suppress(ConnectionClosedOK, ConnectionClosedError, ConnectionClosed):
                     await client.send_keep_alive()
             elif msg_type == "interrupt":
-                # 打断策略收敛为“后端基于 ASR 事件(450/451)自动触发”；
-                # 前端 interrupt 仅保留兼容，不再直接驱动上游打断。
+                # 客户端明确发起 interrupt 时，立即执行当前轮次取消，
+                # 并透传上游 interrupt，保证“可感知的立即打断”。
+                interrupted_turn_id = active_turn.turn_id if active_turn else ""
+                turn_was_cancelled = await cancel_active_turn(
+                    interrupt_upstream=True, reason="client_interrupt"
+                )
+                outbound_audio_gate_until_ts = max(outbound_audio_gate_until_ts, time.time() + 0.55)
                 LOGGER.info(
-                    "[WS] browser interrupt ignored (ASR-driven interrupt enabled): conversation_id=%s",
+                    "[WS] browser interrupt applied: conversation_id=%s gate_until=%.3f",
                     conversation_id,
+                    outbound_audio_gate_until_ts,
                 )
                 await _safe_send_ws_event(
                     ws,
                     "interrupt_policy",
-                    mode="asr_driven",
-                    ignored_client_interrupt=True,
+                    mode="client_and_asr",
+                    ignored_client_interrupt=False,
+                    applied_client_interrupt=turn_was_cancelled,
+                    turn_id=interrupted_turn_id,
                 )
             elif msg_type == "text_query":
                 content = str(data.get("content", "")).strip()

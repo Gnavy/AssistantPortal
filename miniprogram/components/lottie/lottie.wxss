@@ -1,0 +1,7 @@
+.lottie-root {
+  display: inline-block;
+}
+
+.lottie-canvas {
+  display: block;
+}

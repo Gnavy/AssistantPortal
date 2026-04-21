@@ -211,7 +211,7 @@ export function VoiceRealtimePage({ onBack, conversationId, onVoiceAssistantRepl
     : connectionState === 'error'
       ? '连接失败'
       : connectionState === 'connecting'
-        ? '连接豆包中…'
+        ? '连接中…'
         : '已断开';
 
   const titleText = isConnected

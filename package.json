@@ -1,0 +1,9 @@
+{
+  "name": "agentground-miniprogram",
+  "version": "1.0.0",
+  "private": true,
+  "description": "天府长岛元创助手 - 微信小程序",
+  "dependencies": {
+    "lottie-miniprogram": "^1.0.12"
+  }
+}
